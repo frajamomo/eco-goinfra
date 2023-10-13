@@ -10,6 +10,7 @@ require (
 	github.com/grafana-operator/grafana-operator/v4 v4.10.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.4.0
 	github.com/k8snetworkplumbingwg/sriov-network-operator v0.0.0-20201204053545-49045c36efb9
+	github.com/medik8s/fence-agents-remediation v0.2.0 
 	github.com/metal3-io/baremetal-operator/apis v0.2.0
 	github.com/metallb/metallb-operator v0.13.9
 	github.com/nmstate/kubernetes-nmstate/api v0.0.0-20230620093014-45a940d6f70d
