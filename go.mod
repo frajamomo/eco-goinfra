@@ -19,7 +19,7 @@ require (
 	github.com/openshift/api v3.9.1-0.20190916204813-cdbe64fb0c91+incompatible
 	github.com/openshift/assisted-service/api v0.0.0-20230906121258-6d85fb16f8dd
 	github.com/openshift/assisted-service/models v0.0.0
-	github.com/openshift/client-go v0.0.0-20230120202327-72f107311084
+	github.com/openshift/client-go v0.0.0-20230626133714-296133fbf75e
 	github.com/openshift/cluster-logging-operator v0.0.0-20230921181116-cd901aaa8af2
 	github.com/openshift/cluster-nfd-operator v0.0.0-20230116162820-3d08a74f3d2e
 	github.com/openshift/cluster-node-tuning-operator v0.0.0-20230704170229-287fdce04769
@@ -34,15 +34,15 @@ require (
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	gopkg.in/k8snetworkplumbingwg/multus-cni.v4 v4.0.2
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.27.1
-	k8s.io/apiextensions-apiserver v0.27.1
+	k8s.io/api v0.27.2
+	k8s.io/apiextensions-apiserver v0.27.2
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/kubelet v0.26.2
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
 	maistra.io/api v0.0.0-20230417135504-0536f6c22b1c
 	open-cluster-management.io/governance-policy-propagator v0.11.0
-	sigs.k8s.io/controller-runtime v0.14.6
+	sigs.k8s.io/controller-runtime v0.15.0
 
 )
 
@@ -153,6 +153,7 @@ require (
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/medik8s/fence-agents-remediation v0.2.0 // indirect
 	github.com/metal3-io/baremetal-operator/pkg/hardwareutils v0.1.2 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
@@ -203,7 +204,7 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.9.3 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc // indirect
 	google.golang.org/grpc v1.53.0 // indirect
@@ -214,7 +215,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiserver v0.26.2 // indirect
 	k8s.io/cli-runtime v0.26.1 // indirect
-	k8s.io/component-base v0.27.1 // indirect
+	k8s.io/component-base v0.27.2 // indirect
 	k8s.io/component-helpers v0.26.1 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
