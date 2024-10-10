@@ -136,6 +136,11 @@ func CreateNetworkStatuses(r cnitypes.Result, networkName string, defaultNetwork
 		return nil, fmt.Errorf("error converting the type.Result to cni100.Result: %v", err)
 	}
 
+	if len(result.Interfaces) == 1 {
+		networkStatus, err := CreateNetworkStatus(r, networkName, defaultNetwork, dev)
+		return []*v1.NetworkStatus{networkStatus}, err
+	}
+
 	// Discover default routes upfront and reuse them if necessary.
 	var useDefaultRoute []string
 	for _, route := range result.Routes {
@@ -149,11 +154,12 @@ func CreateNetworkStatuses(r cnitypes.Result, networkName string, defaultNetwork
 
 	// Initialize NetworkStatus for each container interface (e.g. with sandbox present)
 	indexOfFoundPodInterface := 0
+	foundFirstSandboxIface := false
 	for i, iface := range result.Interfaces {
 		if iface.Sandbox != "" {
 			ns := &v1.NetworkStatus{
 				Name:       networkName,
-				Default:    defaultNetwork,
+				Default:    defaultNetwork && !foundFirstSandboxIface,
 				Interface:  iface.Name,
 				Mac:        iface.Mac,
 				Mtu:        iface.Mtu,
@@ -166,6 +172,7 @@ func CreateNetworkStatuses(r cnitypes.Result, networkName string, defaultNetwork
 			// Map original index to the new slice index
 			indexMap[i] = indexOfFoundPodInterface
 			indexOfFoundPodInterface++
+			foundFirstSandboxIface = true
 		}
 	}
 

@@ -311,11 +311,6 @@ func (in *ManageCephCluster) DeepCopyInto(out *ManageCephCluster) {
 		*out = new(bool)
 		**out = **in
 	}
-	if in.FullRatio != nil {
-		in, out := &in.FullRatio, &out.FullRatio
-		*out = new(float64)
-		**out = **in
-	}
 	if in.NearFullRatio != nil {
 		in, out := &in.NearFullRatio, &out.NearFullRatio
 		*out = new(float64)
@@ -323,6 +318,11 @@ func (in *ManageCephCluster) DeepCopyInto(out *ManageCephCluster) {
 	}
 	if in.BackfillFullRatio != nil {
 		in, out := &in.BackfillFullRatio, &out.BackfillFullRatio
+		*out = new(float64)
+		**out = **in
+	}
+	if in.FullRatio != nil {
+		in, out := &in.FullRatio, &out.FullRatio
 		*out = new(float64)
 		**out = **in
 	}
@@ -1048,7 +1048,11 @@ func (in *StorageClusterSpec) DeepCopyInto(out *StorageClusterSpec) {
 		(*in).DeepCopyInto(*out)
 	}
 	in.Arbiter.DeepCopyInto(&out.Arbiter)
-	in.Mirroring.DeepCopyInto(&out.Mirroring)
+	if in.Mirroring != nil {
+		in, out := &in.Mirroring, &out.Mirroring
+		*out = new(MirroringSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.OverprovisionControl != nil {
 		in, out := &in.OverprovisionControl, &out.OverprovisionControl
 		*out = make([]OverprovisionControlSpec, len(*in))
