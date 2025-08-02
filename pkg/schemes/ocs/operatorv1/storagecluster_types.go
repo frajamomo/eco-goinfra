@@ -32,8 +32,6 @@ import (
 
 // StorageClusterSpec defines the desired state of StorageCluster
 type StorageClusterSpec struct {
-	ManageNodes  bool   `json:"manageNodes,omitempty"`
-	InstanceType string `json:"instanceType,omitempty"`
 	// LabelSelector is used to specify custom labels of nodes to run OCS on
 	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 	// ExternalStorage is optional and defaults to false. When set to true, OCS will
@@ -56,15 +54,11 @@ type StorageClusterSpec struct {
 	StorageDeviceSets  []StorageDeviceSet            `json:"storageDeviceSets,omitempty"`
 	MonPVCTemplate     *corev1.PersistentVolumeClaim `json:"monPVCTemplate,omitempty"`
 	MonDataDirHostPath string                        `json:"monDataDirHostPath,omitempty"`
-	Mgr                *MgrSpec                      `json:"mgr,omitempty"`
 	MultiCloudGateway  *MultiCloudGatewaySpec        `json:"multiCloudGateway,omitempty"`
 	NFS                *NFSSpec                      `json:"nfs,omitempty"`
 	CSI                *CSIDriverSpec                `json:"csi,omitempty"`
 	// Monitoring controls the configuration of resources for exposing OCS metrics
 	Monitoring *MonitoringSpec `json:"monitoring,omitempty"`
-	// Version specifies the version of StorageCluster
-	// +kubebuilder:deprecatedversion:warning="This field has been deprecated and will be removed in future versions. Use `StorageCluster.Status.Version` instead."
-	Version string `json:"version,omitempty"`
 	// Network represents cluster network settings
 	Network *rookCephv1.NetworkSpec `json:"network,omitempty"`
 	// ManagedResources specifies how to deal with auxiliary resources reconciled
@@ -93,11 +87,13 @@ type StorageClusterSpec struct {
 
 	// AllowRemoteStorageConsumers Indicates that the OCS cluster should deploy the needed
 	// components to enable connections from remote consumers.
+	// +kubebuilder:deprecatedversion:warning="AllowRemoteStorageConsumers field has been deprecated and will be ignored within the reconcile."
+	// +kubebuilder:validation:XValidation:rule="oldSelf == self",message="allowRemoteStorageConsumers is immutable"
 	AllowRemoteStorageConsumers bool `json:"allowRemoteStorageConsumers,omitempty"`
 
 	// ProviderAPIServerServiceType Indicates the ServiceType for OCS Provider API Server Service.
-	// The supported values are NodePort or LoadBalancer. The default ServiceType is NodePort if the value is empty.
-	// This will only be used when AllowRemoteStorageConsumers is set to true
+	// The default ServiceType is derived from hostNetwork field.
+	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer
 	ProviderAPIServerServiceType corev1.ServiceType `json:"providerAPIServerServiceType,omitempty"`
 
 	// EnableCephTools toggles on whether or not the ceph tools pod
@@ -115,9 +111,6 @@ type StorageClusterSpec struct {
 	// provisioned by the storagecluster controller to be used in
 	// storageDeviceSets section of the CR.
 	BackingStorageClasses []BackingStorageClass `json:"backingStorageClasses,omitempty"`
-	// DefaultStorageProfile is the default storage profile to use for
-	// the storagerequest as StorageProfile is optional.
-	DefaultStorageProfile string `json:"defaultStorageProfile,omitempty"`
 }
 
 // CSIDriverSpec defines the CSI driver settings for the StorageCluster.
@@ -125,16 +118,6 @@ type CSIDriverSpec struct {
 	// ReadAffinity defines the read affinity settings for CSI driver.
 	// +kubebuilder:validation:Optional
 	ReadAffinity *rookCephv1.ReadAffinitySpec `json:"readAffinity,omitempty"`
-}
-
-type SharedFilesystemConfigurationSpec struct {
-	// +kubebuilder:validation:Optional
-	Parameters map[string]string `json:"parameters,omitempty"`
-}
-
-type BlockPoolConfigurationSpec struct {
-	// +kubebuilder:validation:Optional
-	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
 // BackingStorageClass defines the backing storageclass for StorageDeviceSet
@@ -216,6 +199,16 @@ type ManageCephCluster struct {
 
 	// Whether to allow updating the device class after the OSD is initially provisioned
 	AllowDeviceClassUpdate bool `json:"allowDeviceClassUpdate,omitempty"`
+
+	// CephClusterHealthCheckSpec represent the healthcheck for Ceph daemons
+	HealthCheck *rookCephv1.CephClusterHealthCheckSpec `json:"healthCheck,omitempty"`
+
+	// Ceph Config options
+	CephConfig map[string]map[string]string `json:"cephConfig,omitempty"`
+
+	// CleanupPolicy defines the cleanup policy for the Rook Ceph cluster.
+	// +optional
+	CleanupPolicy *rookCephv1.CleanupPolicySpec `json:"cleanupPolicy,omitempty"`
 }
 
 // ManageCephConfig defines how to reconcile the Ceph configuration
@@ -232,9 +225,7 @@ type ManageCephDashboard struct {
 
 // ManageCephBlockPools defines how to reconcile CephBlockPools
 type ManageCephBlockPools struct {
-	ReconcileStrategy    string `json:"reconcileStrategy,omitempty"`
-	DisableStorageClass  bool   `json:"disableStorageClass,omitempty"`
-	DisableSnapshotClass bool   `json:"disableSnapshotClass,omitempty"`
+	ReconcileStrategy string `json:"reconcileStrategy,omitempty"`
 	// if set to true, the storageClass created for cephBlockPools will be annotated as the default for the whole cluster
 	DefaultStorageClass bool `json:"defaultStorageClass,omitempty"`
 	// StorageClassName specifies the name of the storage class created for ceph block pools
@@ -246,6 +237,10 @@ type ManageCephBlockPools struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
 	VirtualizationStorageClassName string `json:"virtualizationStorageClassName,omitempty"`
+	// if set to true, the virtualization storageClass will be annotated as the default for kubevirt workloads
+	DefaultVirtualizationStorageClass bool `json:"defaultVirtualizationStorageClass,omitempty"`
+	// PoolSpec specifies the pool specification for the default cephBlockPool
+	PoolSpec *rookCephv1.PoolSpec `json:"poolSpec,omitempty"`
 }
 
 // ManageCephNonResilientPools defines how to reconcile ceph non-resilient pools
@@ -253,47 +248,52 @@ type ManageCephNonResilientPools struct {
 	Enable bool `json:"enable,omitempty"`
 	// Count is the number of devices in this set
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:default=1
 	Count int `json:"count,omitempty"`
 	// ResourceRequirements (requests/limits) for the devices
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// VolumeClaimTemplates is a PVC template for the underlying storage devices
-	VolumeClaimTemplate corev1.PersistentVolumeClaim `json:"volumeClaimTemplate,omitempty"`
+	VolumeClaimTemplate *corev1.PersistentVolumeClaim `json:"volumeClaimTemplate,omitempty"`
 	// StorageClassName specifies the name of the storage class created for ceph non-resilient pools
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
 	StorageClassName string `json:"storageClassName,omitempty"`
-	// ReconcileStrategy and other related fields are not used for now
-	// They can be added once the feature goes to GA
+	// Parameters is a list of properties to enable on the non-resilient cephBlockPools
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +optional
+	// +nullable
+	Parameters map[string]string `json:"parameters,omitempty"`
 }
 
 // ManageCephFilesystems defines how to reconcile CephFilesystems
 type ManageCephFilesystems struct {
-	ReconcileStrategy     string `json:"reconcileStrategy,omitempty"`
-	DisableStorageClass   bool   `json:"disableStorageClass,omitempty"`
-	ActiveMetadataServers int    `json:"activeMetadataServers,omitempty"`
-	DisableSnapshotClass  bool   `json:"disableSnapshotClass,omitempty"`
+	ReconcileStrategy string `json:"reconcileStrategy,omitempty"`
+	ActiveMetadataServers int  `json:"activeMetadataServers,omitempty"`
 	// StorageClassName specifies the name of the storage class created for cephfs
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
 	StorageClassName string `json:"storageClassName,omitempty"`
+	// MetadataPoolSpec specifies the pool specification for the default cephFS metadata pool
+	MetadataPoolSpec *rookCephv1.PoolSpec `json:"metadataPoolSpec,omitempty"`
 	// DataPoolSpec specifies the pool specification for the default cephfs data pool
-	DataPoolSpec rookCephv1.PoolSpec `json:"dataPoolSpec,omitempty"`
+	DataPoolSpec *rookCephv1.PoolSpec `json:"dataPoolSpec,omitempty"`
 	// AdditionalDataPools specifies list of additional named cephfs data pools
 	AdditionalDataPools []rookCephv1.NamedPoolSpec `json:"additionalDataPools,omitempty"`
 }
 
 // ManageCephObjectStores defines how to reconcile CephObjectStores
 type ManageCephObjectStores struct {
-	ReconcileStrategy   string `json:"reconcileStrategy,omitempty"`
-	DisableStorageClass bool   `json:"disableStorageClass,omitempty"`
-	GatewayInstances    int    `json:"gatewayInstances,omitempty"`
-	DisableRoute        bool   `json:"disableRoute,omitempty"`
-	HostNetwork         *bool  `json:"hostNetwork,omitempty"`
+	ReconcileStrategy string `json:"reconcileStrategy,omitempty"`
+	GatewayInstances    int   `json:"gatewayInstances,omitempty"`
+	DisableRoute        bool  `json:"disableRoute,omitempty"`
+	HostNetwork         *bool `json:"hostNetwork,omitempty"`
 	// StorageClassName specifies the name of the storage class created for ceph obc's
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
 	StorageClassName string `json:"storageClassName,omitempty"`
+	// MetadataPoolSpec specifies the pool specification for the default cephObjectStore metadata pool
+	MetadataPoolSpec *rookCephv1.PoolSpec `json:"metadataPoolSpec,omitempty"`
+	// DataPoolSpec specifies the pool specification for the default cephObjectStore data pool
+	DataPoolSpec *rookCephv1.PoolSpec `json:"dataPoolSpec,omitempty"`
 }
 
 // ManageCephObjectStoreUsers defines how to reconcile CephObjectStoreUsers
@@ -309,17 +309,8 @@ type ManageCephToolbox struct {
 // ManageCephRBDMirror defines how to reconcile Ceph RBDMirror
 type ManageCephRBDMirror struct {
 	ReconcileStrategy string `json:"reconcileStrategy,omitempty"`
-	// +kubebuilder:default=1
 	// +kubebuilder:validation:Minimum=1
 	DaemonCount int `json:"daemonCount,omitempty"`
-}
-
-// MgrSpec defines the settings for the Ceph Manager
-type MgrSpec struct {
-	// EnableActivePassive can be set as true to deploy 2 ceph manager pods, one active and one standby
-	// Ceph will promote the standby mgr when the active mgr goes down due to any reason
-	// +kubebuilder:deprecatedversion:warning="This field has been deprecated and will be removed in future. By default we now have 2 ceph manager pods, one active and one standby."
-	EnableActivePassive bool `json:"enableActivePassive,omitempty"`
 }
 
 // ExternalStorageKind specifies a kind of the external storage
@@ -408,8 +399,6 @@ type StorageDeviceSet struct {
 	Encrypted *bool `json:"encrypted,omitempty"`
 }
 
-// TODO: Fill in the members when the actual configurable options are defined in rook-ceph
-
 // StorageDeviceSetConfig defines Ceph OSD specific config options for the StorageDeviceSet
 type StorageDeviceSetConfig struct {
 	// TuneSlowDeviceClass tunes the OSD when running on a slow Device Class
@@ -441,6 +430,11 @@ type MultiCloudGatewaySpec struct {
 	// +nullable
 	// +optional
 	DisableLoadBalancerService bool `json:"disableLoadBalancerService,omitempty"`
+
+	// DisableRoutes (optional) disables the reconciliation of openshift route resources in the cluster
+	// +nullable
+	// +optional
+	DisableRoutes bool `json:"disableRoutes,omitempty"`
 
 	// Allows Noobaa to connect to an external Postgres server
 	// +optional
@@ -475,6 +469,11 @@ type NFSSpec struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
 	StorageClassName string `json:"storageClassName,omitempty"`
+	// LogLevel set logging level
+	// Log levels: NIV_NULL | NIV_FATAL | NIV_MAJ | NIV_CRIT | NIV_WARN | NIV_EVENT | NIV_INFO | NIV_DEBUG | NIV_MID_DEBUG | NIV_FULL_DEBUG | NB_LOG_LEVEL
+	// +optional
+	LogLevel          string `json:"logLevel,omitempty"`
+	ReconcileStrategy string `json:"reconcileStrategy,omitempty"`
 }
 
 // MonitoringSpec controls the configuration of resources for exposing OCS metrics
@@ -778,6 +777,16 @@ func (r *StorageCluster) NewToolsDeployment(tolerations []corev1.Toleration, nod
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "ceph-config", MountPath: "/etc/ceph"},
 								{Name: "mon-endpoint-volume", MountPath: "/etc/rook"},
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse("128Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("250m"),
+									corev1.ResourceMemory: resource.MustParse("256Mi"),
+								},
 							},
 						},
 					},

@@ -77,6 +77,10 @@ type NooBaaSpec struct {
 	// +optional
 	Image *string `json:"image,omitempty"`
 
+	// DBSpec (optional) DB spec for a managed postgres cluster
+	// +optional
+	DBSpec *NooBaaDBSpec `json:"dbSpec,omitempty"`
+
 	// DBImage (optional) overrides the default image for the db container
 	// +optional
 	DBImage *string `json:"dbImage,omitempty"`
@@ -153,7 +157,7 @@ type NooBaaSpec struct {
 
 	// Affinity (optional) passed through to noobaa's pods
 	// +optional
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	Affinity *AffinitySpec `json:"affinity,omitempty"`
 
 	// ImagePullSecret (optional) sets a pull secret for the system image
 	// +optional
@@ -198,6 +202,11 @@ type NooBaaSpec struct {
 	// +optional
 	DisableLoadBalancerService bool `json:"disableLoadBalancerService,omitempty"`
 
+	// DisableRoutes (optional) disables the reconciliation of openshift route resources in the cluster
+	// +nullable
+	// +optional
+	DisableRoutes bool `json:"disableRoutes,omitempty"`
+
 	// Deprecated: DefaultBackingStoreSpec is not supported anymore, use ManualDefaultBackingStore instead.
 	// +optional
 	DefaultBackingStoreSpec *BackingStoreSpec `json:"defaultBackingStoreSpec,omitempty"`
@@ -227,6 +236,28 @@ type NooBaaSpec struct {
 	// BucketLogging sets the configuration for bucket logging
 	// +optional
 	BucketLogging BucketLoggingSpec `json:"bucketLogging,omitempty"`
+
+	// BucketNotifications (optional) controls bucket notification options
+	// +optional
+	BucketNotifications BucketNotificationsSpec `json:"bucketNotifications,omitempty"`
+}
+
+// Affinity is a group of affinity scheduling rules.
+type AffinitySpec struct {
+	// Describes node affinity scheduling rules for the pod.
+	// +optional
+	NodeAffinity *corev1.NodeAffinity `json:"nodeAffinity,omitempty" protobuf:"bytes,1,opt,name=nodeAffinity"`
+	// Describes pod affinity scheduling rules (e.g. co-locate this pod in the same node, zone, etc. as some other pod(s)).
+	// +optional
+	PodAffinity *corev1.PodAffinity `json:"podAffinity,omitempty" protobuf:"bytes,2,opt,name=podAffinity"`
+	// Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).
+	// +optional
+	PodAntiAffinity *corev1.PodAntiAffinity `json:"podAntiAffinity,omitempty" protobuf:"bytes,3,opt,name=podAntiAffinity"`
+
+	// TopologyKey (optional) the TopologyKey to pass as the domain for TopologySpreadConstraint and Affinity of noobaa components
+	// It is used by the endpoints and the DB pods to control pods distribution between topology domains (host/zone)
+	// +optional
+	TopologyKey string `json:"topologyKey,omitempty"`
 }
 
 // AutoscalerSpec defines different actoscaling spec such as autoscaler type and prometheus namespace
@@ -258,6 +289,22 @@ type BucketLoggingSpec struct {
 	BucketLoggingPVC *string `json:"bucketLoggingPVC,omitempty"`
 }
 
+// BucketNotificationsSpec controls bucket notification configuration
+type BucketNotificationsSpec struct {
+	// Enabled - whether bucket notifications is enabled
+	Enabled bool `json:"enabled"`
+
+	//PVC (optional) specifies the name of the Persistent Volume Claim (PVC) to be used
+	//for holding pending notifications files.
+	//For ODF - If not provided, the default CepthFS storage class will be used to create the PVC.
+	// +optional
+	PVC *string `json:"pvc,omitempty"`
+
+	//Connections - A list of secrets' names that are used by the notifications configrations
+	//(in the TopicArn field).
+	Connections []corev1.SecretReference `json:"connections,omitempty"`
+}
+
 // LoadBalancerSourceSubnetSpec defines the subnets that will be allowed to access the NooBaa services
 type LoadBalancerSourceSubnetSpec struct {
 	// S3 is a list of subnets that will be allowed to access the Noobaa S3 service
@@ -282,6 +329,40 @@ type KeyManagementServiceSpec struct {
 	Schedule          string            `json:"schedule,omitempty"`
 	ConnectionDetails map[string]string `json:"connectionDetails,omitempty"`
 	TokenSecretName   string            `json:"tokenSecretName,omitempty"`
+}
+
+// NooBaaDBSpec defines the desired state of a managed postgres cluster
+// +k8s:openapi-gen=true
+type NooBaaDBSpec struct {
+	// DBImage (optional) overrides the default image for the db instances
+	// +optional
+	DBImage *string `json:"image,omitempty"`
+
+	// PostgresMajorVersion (optional) overrides the default postgres major version
+	// It is the user's responsibility to ensure that the postgres image matches the major version.
+	PostgresMajorVersion *int `json:"postgresMajorVersion,omitempty"`
+
+	// Instances (optional) overrides the default number of db instances
+	// +optional
+	Instances *int `json:"instances,omitempty"`
+
+	// DBResources (optional) overrides the default resource requirements for the db container
+	// +optional
+	DBResources *corev1.ResourceRequirements `json:"dbResources,omitempty"`
+
+	// DBMinVolumeSize (optional) The initial size of the database volume.The actual size might be larger.
+	// Increasing the size of the volume is supported if the underlying storage class supports volume expansion.
+	// The new size should be larger than actualVolumeSize in dbStatus for the volume to be resized.
+	// +optional
+	DBMinVolumeSize string `json:"dbMinVolumeSize,omitempty"`
+
+	// DBStorageClass (optional) overrides the default cluster StorageClass for the database volume.
+	// +optional
+	DBStorageClass *string `json:"dbStorageClass,omitempty"`
+
+	// DBConf (optional) overrides the default postgresql db config
+	// +optional
+	DBConf map[string]string `json:"dbConf,omitempty"`
 }
 
 // EndpointsSpec defines the desired state of noobaa endpoint deployment
@@ -365,6 +446,10 @@ type NooBaaStatus struct {
 	// BeforeUpgradeDbImage is the db image used before last db upgrade
 	// +optional
 	BeforeUpgradeDbImage *string `json:"beforeUpgradeDbImage,omitempty"`
+
+	// DBStatus is the status of the postgres cluster
+	// +optional
+	DBStatus *NooBaaDBStatus `json:"dbStatus,omitempty"`
 }
 
 // SystemPhase is a string enum type for system phases
@@ -392,6 +477,42 @@ const (
 
 	// SystemPhaseReady means the noobaa system has been created and ready to serve.
 	SystemPhaseReady SystemPhase = "Ready"
+)
+
+type NooBaaDBStatus struct {
+	// DBClusterStatus is the status of the postgres cluster
+	DBClusterStatus DBClusterStatus `json:"dbClusterStatus,omitempty"`
+
+	// DBCurrentImage is the image of the postgres cluster
+	DBCurrentImage string `json:"dbCurrentImage,omitempty"`
+
+	// CurrentPgMajorVersion is the major version of the postgres cluster
+	CurrentPgMajorVersion int `json:"currentPgMajorVersion,omitempty"`
+
+	// ActualVolumeSize is the actual size of the postgres cluster volume. This can be different than the requested size
+	ActualVolumeSize string `json:"actualVolumeSize,omitempty"`
+}
+
+type DBClusterStatus string
+
+const (
+	// DBClusterStatusNone means there is no DB cluster configured
+	DBClusterStatusNone DBClusterStatus = "None"
+
+	// DBClusterStatusCreating means a new DB cluster is being created
+	DBClusterStatusCreating DBClusterStatus = "Creating"
+
+	// DBClusterStatusUpdating means the DB cluster is being updated
+	DBClusterStatusUpdating DBClusterStatus = "Updating"
+
+	// DBClusterStatusImporting means a new DB cluster is being created and data is being imported from the previous DB
+	DBClusterStatusImporting DBClusterStatus = "Importing"
+
+	// DBClusterStatusReady means the DB cluster is ready
+	DBClusterStatusReady DBClusterStatus = "Ready"
+
+	// DBClusterStatusFailed means the DB cluster reconciliation encountered an error
+	DBClusterStatusFailed DBClusterStatus = "Failed"
 )
 
 // These are the valid conditions types and statuses:
@@ -537,8 +658,11 @@ const (
 	// DeleteOBCConfirmation represents the validation to destry obc
 	DeleteOBCConfirmation CleanupConfirmationProperty = "yes-really-destroy-obc"
 
-	// SkipTopologyConstraints is Annotation name for disabling default topology Constraints
+	// SkipTopologyConstraints is Annotation name for skipping the reconciliation of the default topology Constraints
 	SkipTopologyConstraints = "noobaa.io/skip_topology_spread_constraints"
+
+	// DisableDBDefaultMonitoring is Annotation name for disabling default db monitoring
+	DisableDBDefaultMonitoring = "noobaa.io/disable_db_default_monitoring"
 )
 
 // DBTypes is a string enum type for specify the types of DB that are supported.

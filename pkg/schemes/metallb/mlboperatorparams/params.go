@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	v1beta1 "github.com/openshift-kni/eco-goinfra/pkg/schemes/metallb/mlboperator"
 )
 
@@ -36,6 +37,7 @@ type EnvConfig struct {
 	FRRImage                   ImageInfo
 	FRRK8sImage                ImageInfo
 	KubeRBacImage              ImageInfo
+	CNOMinFRRK8sVersion        string
 	MLBindPort                 int
 	FRRMetricsPort             int
 	SecureFRRMetricsPort       int
@@ -47,6 +49,7 @@ type EnvConfig struct {
 	SecureMetricsPort          int
 	DeployPodMonitors          bool
 	DeployServiceMonitors      bool
+	DisableNetworkPolicies     bool
 	IsOpenshift                bool
 	MustDeployFRRK8sFromCNO    bool
 }
@@ -125,6 +128,9 @@ func FromEnvironment(isOpenshift bool) (EnvConfig, error) {
 	if os.Getenv("DEPLOY_SERVICEMONITORS") == "true" {
 		res.DeployServiceMonitors = true
 	}
+	if os.Getenv("DISABLE_NETWORK_POLICIES") == "true" {
+		res.DisableNetworkPolicies = true
+	}
 
 	res.FRRK8sExternalNamespace = os.Getenv("FRRK8S_EXTERNAL_NAMESPACE")
 	if os.Getenv("DEPLOY_FRRK8S_FROM_CNO") == "true" {
@@ -133,6 +139,7 @@ func FromEnvironment(isOpenshift bool) (EnvConfig, error) {
 
 	// Ignoring the error, if not set we'll consume the image from the chart
 	res.FRRK8sImage, _ = imageFromEnv("FRRK8S_IMAGE")
+	res.CNOMinFRRK8sVersion = os.Getenv("CNO_MIN_FRRK8S_VERSION")
 
 	err = validate(res)
 	if err != nil {
@@ -151,6 +158,12 @@ func validate(config EnvConfig) error {
 	}
 	if config.SecureFRRMetricsPort != 0 && !config.DeployServiceMonitors {
 		return fmt.Errorf("secureFRRMetricsPort is available only if service monitors are enabled")
+	}
+	if config.CNOMinFRRK8sVersion != "" {
+		_, err := semver.NewVersion(config.CNOMinFRRK8sVersion)
+		if err != nil {
+			return fmt.Errorf("invalid cno min frrk8s supported version: %w", err)
+		}
 	}
 	return nil
 }

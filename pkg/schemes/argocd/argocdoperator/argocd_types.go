@@ -134,6 +134,9 @@ type ArgoCDApplicationControllerSpec struct {
 
 	// Custom labels to pods deployed by the operator
 	Labels map[string]string `json:"labels,omitempty"`
+
+	// RespectRBAC restricts controller from discovering/syncing specific resources, Defaults is empty if not configured. Valid options are strict and normal.
+	RespectRBAC string `json:"respectRBAC,omitempty"`
 }
 
 func (a *ArgoCDApplicationControllerSpec) IsEnabled() bool {
@@ -213,6 +216,10 @@ type ArgoCDApplicationSet struct {
 
 	// VolumeMounts adds volumeMounts to the Argo CD ApplicationSet Controller container.
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
+
+	// LogFormat refers to the log format used by the ApplicationSet component. Defaults to ArgoCDDefaultLogFormat if not configured. Valid options are text or json.
+	// +kubebuilder:validation:Enum=text;json
+	LogFormat string `json:"logformat,omitempty"`
 }
 
 func (a *ArgoCDApplicationSet) IsEnabled() bool {
@@ -261,6 +268,12 @@ type ArgoCDDexSpec struct {
 
 	// Env lets you specify environment variables for Dex.
 	Env []corev1.EnvVar `json:"env,omitempty"`
+
+	// Volumes adds volumes to the dex server container
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
+
+	// VolumeMounts adds volumeMounts to the dex server container
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // ArgoCDGrafanaSpec defines the desired state for the Grafana component.
@@ -400,6 +413,10 @@ type ArgoCDNotifications struct {
 
 	// LogLevel describes the log level that should be used by the argocd-notifications. Defaults to ArgoCDDefaultLogLevel if not set.  Valid options are debug,info, error, and warn.
 	LogLevel string `json:"logLevel,omitempty"`
+
+	// LogFormat refers to the log format used by the argocd-notifications. Defaults to ArgoCDDefaultLogFormat if not configured. Valid options are text or json.
+	// +kubebuilder:validation:Enum=text;json
+	LogFormat string `json:"logformat,omitempty"`
 }
 
 // ArgoCDPrometheusSpec defines the desired state for the Prometheus component.
@@ -543,7 +560,9 @@ type ArgoCDRepoSpec struct {
 	// InitContainers defines the list of initialization containers for the repo server deployment
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
-	// SidecarContainers defines the list of sidecar containers for the repo server deployment
+	// SidecarContainers defines the list of sidecar containers for the repo
+	// server deployment. If the image field is omitted from a SidecarContainer,
+	// the image for the repo server will be used.
 	SidecarContainers []corev1.Container `json:"sidecarContainers,omitempty"`
 
 	// Enabled is the flag to enable Repo Server during ArgoCD installation. (optional, default `true`)
@@ -749,6 +768,10 @@ type ArgoCDSSOSpec struct {
 	Keycloak *ArgoCDKeycloakSpec `json:"keycloak,omitempty"`
 }
 
+func (a *ArgoCDSSOSpec) IsEnabled() bool {
+	return a != nil && string(a.Provider) != ""
+}
+
 // KustomizeVersionSpec is used to specify information about a kustomize version to be used within ArgoCD.
 type KustomizeVersionSpec struct {
 	// Version is a configured kustomize version in the format of vX.Y.Z
@@ -787,7 +810,11 @@ type ArgoCDSpec struct {
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Application Instance Label Key'",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text","urn:alm:descriptor:com.tectonic.ui:advanced"}
 	ApplicationInstanceLabelKey string `json:"applicationInstanceLabelKey,omitempty"`
 
-	// ConfigManagementPlugins is used to specify additional config management plugins.
+	// InstallationID uniquely identifies an Argo CD instance in multi-instance clusters.
+	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Installation ID",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text","urn:alm:descriptor:com.tectonic.ui:advanced"}
+	InstallationID string `json:"installationID,omitempty"`
+
+	// Deprecated: ConfigManagementPlugins field is no longer supported. Argo CD now requires plugins to be defined as sidecar containers of repo server component. See '.spec.repo.sidecarContainers'. ConfigManagementPlugins was previously used to specify additional config management plugins.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Config Management Plugins'",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text","urn:alm:descriptor:com.tectonic.ui:advanced"}
 	ConfigManagementPlugins string `json:"configManagementPlugins,omitempty"`
 
@@ -834,7 +861,7 @@ type ArgoCDSpec struct {
 	// Import is the import/restore options for ArgoCD.
 	Import *ArgoCDImportSpec `json:"import,omitempty"`
 
-	// InitialRepositories to configure Argo CD with upon creation of the cluster.
+	// Deprecated: InitialRepositories to configure Argo CD with upon creation of the cluster.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Initial Repositories'",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:text","urn:alm:descriptor:com.tectonic.ui:advanced"}
 	InitialRepositories string `json:"initialRepositories,omitempty"`
 
@@ -873,7 +900,7 @@ type ArgoCDSpec struct {
 	// Repo defines the repo server options for Argo CD.
 	Repo ArgoCDRepoSpec `json:"repo,omitempty"`
 
-	// RepositoryCredentials are the Git pull credentials to configure Argo CD with upon creation of the cluster.
+	// Deprecated: RepositoryCredentials are the Git pull credentials to configure Argo CD with upon creation of the cluster.
 	RepositoryCredentials string `json:"repositoryCredentials,omitempty"`
 
 	// ResourceHealthChecks customizes resource health check behavior.
@@ -933,7 +960,34 @@ type ArgoCDSpec struct {
 
 	// AggregatedClusterRoles will allow users to have aggregated ClusterRoles for a cluster scoped instance.
 	AggregatedClusterRoles bool `json:"aggregatedClusterRoles,omitempty"`
+
+	// CmdParams specifies command-line parameters for the Argo CD components.
+	CmdParams map[string]string `json:"cmdParams,omitempty"`
+
+	// ArgoCDAgent defines configurations for the ArgoCD Agent component.
+	ArgoCDAgent *ArgoCDAgentSpec `json:"argoCDAgent,omitempty"`
+
+	// NamespaceManagement defines the list of namespaces that Argo CD is allowed to manage.
+	NamespaceManagement []ManagedNamespaces `json:"namespaceManagement,omitempty"`
 }
+
+// NamespaceManagement defines the namespace management settings
+type ManagedNamespaces struct {
+	// Name of the namespace or pattern to be managed
+	Name string `json:"name"`
+
+	// Whether the namespace can be managed by ArgoCD
+	AllowManagedBy bool `json:"allowManagedBy"`
+}
+
+const (
+	ArgoCDConditionType = "Reconciled"
+)
+
+const (
+	ArgoCDConditionReasonSuccess       = "Success"
+	ArgoCDConditionReasonErrorOccurred = "ErrorOccurred"
+)
 
 // ArgoCDStatus defines the observed state of ArgoCD
 // +k8s:openapi-gen=true
@@ -1018,6 +1072,9 @@ type ArgoCDStatus struct {
 
 	// Host is the hostname of the Ingress.
 	Host string `json:"host,omitempty"`
+
+	// Conditions is an array of the ArgoCD's status conditions
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Banner defines an additional banner message to be displayed in Argo CD UI
@@ -1027,6 +1084,10 @@ type Banner struct {
 	Content string `json:"content"`
 	// URL defines an optional URL to be used as banner message link
 	URL string `json:"url,omitempty"`
+	// Permanent defines if the banner should be displayed permanently or only for a certain period of time
+	Permanent bool `json:"permanent,omitempty"`
+	// Position defines the position of the banner in the UI
+	Position string `json:"position,omitempty"`
 }
 
 // ArgoCDTLSSpec defines the TLS options for ArgCD.
@@ -1060,6 +1121,37 @@ type WebhookServerSpec struct {
 
 	// Route defines the desired state for an OpenShift Route for the Application set webhook component.
 	Route ArgoCDRouteSpec `json:"route,omitempty"`
+}
+
+type ArgoCDAgentSpec struct {
+
+	// Principal defines configurations for the Principal component of Argo CD Agent.
+	Principal *PrincipalSpec `json:"principal,omitempty"`
+}
+
+type PrincipalSpec struct {
+
+	// Enabled is the flag to enable the Principal component during Argo CD installation. (optional, default `false`)
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// AllowedNamespaces is the list of namespaces that the Principal component is allowed to access.
+	AllowedNamespaces []string `json:"allowedNamespaces,omitempty"`
+
+	// JWTAllowGenerate is the flag to enable the JWT generation during Argo CD installation.
+	JWTAllowGenerate bool `json:"jwtAllowGenerate,omitempty"`
+
+	// Auth is the authentication method for the Principal component.
+	Auth string `json:"auth,omitempty"`
+
+	// LogLevel refers to the log level used by the Principal component. Defaults to info if not configured. Valid options are debug, info, trace, error, and warn.
+	LogLevel string `json:"logLevel,omitempty"`
+
+	// Image is the name of Argo CD Agent image
+	Image string `json:"image,omitempty"`
+}
+
+func (a *PrincipalSpec) IsEnabled() bool {
+	return a.Enabled != nil && *a.Enabled
 }
 
 // IsDeletionFinalizerPresent checks if the instance has deletion finalizer
